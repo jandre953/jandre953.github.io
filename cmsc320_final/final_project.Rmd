@@ -197,6 +197,7 @@ box_data%>%
   geom_boxplot() 
 
 ```
+
 Although the suicde rates are very similar upto the range [5.91e4,6.75e4], after this range, suicide rates are much lower as GDP per capita increases. Both, the range and central tendencies for the last GDP per capita category of [1.18e5,1.26e5] are extremely low. This category mostly comprises of countries like Luxembourg, Qatar, Norway and Switzerland, all of which are wealthy countries with a very high standard of living. Suicde rates in such countries are clearly lower, which points to a relationship between economic status and suicide rates. 
  
 
@@ -227,7 +228,7 @@ hdi_data %>%
 ```
 
 Below, we see the suicide rates by country. Suicide rates are highest in Russia, followed by USA and Japan.
-```{r Suicide no. vs. Country, eval=TRUE,echo=TRUE}
+```{r Suicide no. vs. Country, fig.width = 6, eval=TRUE,echo=TRUE}
 overview %>%
   ggplot(aes(x=factor(country), y=suicides_no)) +
     geom_boxplot() + theme(axis.text.x = element_text(angle=90, hjust=1)) +

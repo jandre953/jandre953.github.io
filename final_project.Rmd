@@ -1,0 +1,572 @@
+---
+title: "How does GDP affect Suicide Rates? - An R Data Science Tutorial"
+output:
+  html_document:
+    df_print: paged
+---
+
+---
+title: "Final Project"
+author: "Roshen Abraham, Atul Shaurya, John Andrews"
+date: "5/17/2020"
+output: pdf_document
+---
+
+This tutorial follows the through the entire data science pipline, using data from:
+
+https://www.kaggle.com/russellyates88/suicide-rates-overview-1985-to-2016
+
+This dataset describes the rates of suicide in many different global societies and their corressponding socio-economic statuses. By exploring this data, we hope to find trends that will help us understand triggers in suicide rates.
+
+In this tutorial we will perform exploratory data analysis to get a better feel for our data. Next, we will develop a null hypothesis of the relationship between the GDP per capita of a region and the region's suicide rates, and then test it. Lastly, we will perform machine learning analysis to develop a model to predict changes in suicides rates across given demographics.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+<!-- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ --> 
+# Exploratory Data Analysis
+<!-- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ --> 
+
+```{r setupdb, include = TRUE, echo = FALSE, message = FALSE}
+library(tidyr)
+library(tidyverse)
+library(broom)
+library(dplyr)
+library(ggplot2)
+```
+
+```{r EDA data preparation, message = FALSE, echo=TRUE, eval=TRUE}
+csv <- "data/master.csv"
+overview <- read_csv(csv)
+head(overview)
+```
+
+First, we take a look at our attribute of interest, the GDP, and how it is spread out in our dataset. To do this, we find the summary of the GDP per capita of our dataset.
+
+```{r summary statistics}
+summary(overview$`gdp_per_capita ($)`)
+```
+
+The data above shows that the mean is much higher than the median. Thus the GDP per capita is skewed to the left. GDP per capita is therefore very poorly distributed across all countries between 1985 to 2016. We can see this pictorially with the help of the histogram below.
+
+```{r gdp per capita distribution, echo = TRUE, eval=TRUE}
+gdp_dist <- overview %>%
+  ggplot(mapping=aes(x=`gdp_per_capita ($)`)) +
+    geom_histogram(bins = 20, fill = "dodgerblue4", color = "grey17") +
+    labs(x = "GDP per capita",
+         y = "Number of entities") +
+    ggtitle("GDP per capita Distribution")
+
+gdp_dist
+```
+
+
+
+
+Below, we visualize the relationship between gdp per capita and the number of suicides per year. Clearly, we see that when GDPper capita is low(25000), the suicide rates are generally high. 
+```{r EDA part 1, echo=TRUE, eval=TRUE}
+eda_data1 <- overview %>%
+  group_by(year, generation)
+
+eda_data1 %>%
+  ggplot(aes(x=year, y=suicides_no, size=`gdp_per_capita ($)`)) + geom_bar(stat="identity", fill= "dodgerblue4") + labs(title="Number of suicides vs year",
+         x = "Year",
+         y = "Number of suicides")
+
+```
+
+In the following plot, we see the number of suicides in 5-year facets in males and females 1985 to 2016, conditioned in the GDP per capita. One of the things that we see right away s that in each year-facet, the number of suicides in males is higher than in females. There are some large "spikes" in the 0-30000\$ GDP per capita range, but as the GDP increases above \$30000, the number of suicides reduces to almost 0.
+```{r EDA part 2, echo=TRUE, eval=TRUE}
+eda_data2 <- overview %>%
+  mutate(dis_year = cut(year, breaks=5)) %>%
+  group_by(country,dis_year,sex) %>%
+  mutate(mean_gdp = mean(`gdp_per_capita ($)`)) %>%
+  mutate(mean_dis_suicide_no = mean(suicides_no))
+  
+head(eda_data2)
+
+eda_data2 %>%
+  ggplot(aes(x= mean_gdp, y=mean_dis_suicide_no)) + facet_grid(sex~dis_year) + geom_point() +
+  theme(axis.text.x = element_text(angle=90, hjust=1)) +
+  labs(title="Mean number of suicides vs GDP per capita: Males vs Females",
+         x = "GDP per capita ($)",
+         y = "Mean suicides")
+```
+
+```{r EDA part 3: standardized, echo=TRUE, eval=TRUE}
+eda_data3 <- overview %>%
+  mutate(dis_year = cut(year, breaks=5)) %>%
+  group_by(country,dis_year,sex) %>%
+  mutate(mean_gdp = mean(`gdp_per_capita ($)`), sd_gdp = sd(`gdp_per_capita ($)`)) %>%
+  mutate(std_gdp = (`gdp_per_capita ($)`- mean_gdp)/sd_gdp) %>%
+    mutate(mean_dis_suicide_no = mean(suicides_no))
+  
+head(eda_data3)
+
+eda_data3 %>%
+  ggplot(aes(x=std_gdp, y=mean_dis_suicide_no)) + facet_grid(sex~dis_year) + geom_point() +
+  theme(axis.text.x = element_text(hjust=1)) +
+  labs(title="Mean number of suicides: Males vs Females",
+         x = "Standardized GDP per capita ($)",
+         y = "Mean suicides")
+
+```
+From the scatter plot above, we can see that the average number of suicides is very uniformly distributed in a given year range. The male suicide rates are higher in each year-facet.
+
+
+Below, we see the mean suicides in each country. In European and Middle Eastern countries where standard of living is relatively higher and popultaion is low, we see a near zero and less mecurial suicide rate.
+We can also see that in USA, for example, when the economic crisis began in 2008, we can see an increase in suicide rates.
+```{r, fig.width=10,fig.height=10, warning=FALSE}
+suicides <- select(overview, 'country', 'year', 'suicides_no')
+suicides <- suicides %>%
+  group_by(country, year) %>%
+    summarize(mean_suicides = mean(suicides_no))
+
+suicides %>%
+  ggplot(aes(year, mean_suicides)) +
+  geom_point() +
+  facet_wrap(~country) + theme(axis.text.x = element_text(angle=90, hjust=1)) + geom_smooth() + 
+  labs(title="Analyzing Countries and their Mean Suicides Capita Overtime",
+         x = "Year",
+         y = "Mean Suicides")
+```
+
+
+An example of GDP affecting suicide rates- Russia: From the plots below, we can see that the suicide rates in Russia are particularly high, which has been attributed to alcohol issues. However, alcohol can be linked to economic status as well. We see that when the GDP per year increased in Russia, the average suicide rates went down by almost 10,000. 
+Faceting by generation groups reveals that as the "Boomers" lived through economic recessions such as 2009, this generation group has much higher suicide rates at lower GDPs since this is the time when they were part of the work force, which means that the falling GDP affected them the most.
+```{r, Russia suicide rates, echo = TRUE, eval=TRUE}
+suicides <- overview %>%
+  filter(country == "Russian Federation") %>%
+  group_by(year, generation, sex) %>%
+  mutate(mean_suicides = mean(suicides_no))
+
+suicides %>%
+  ggplot(aes(`gdp_for_year ($)`, mean_suicides)) +
+  geom_point() + facet_grid(generation~sex) + geom_line(color="dodgerblue4") +
+  labs(title="Russia's high suicide rates",
+         x = "GDP",
+         y = "Mean Suicides")
+```
+ 
+Below, we see the relationship between suicide rate per 100K population vs the generation of the subjects. To do this, we use a box plot. We can see that suicide rates have decreased drastically, especially comapared to the G.I. Generation. Suicde rates per 100K is still consistently higher among males than females. More better education and more economic stability in the world, there is a decrease in suicide rates. For example, the Millenials, who lived through the financial crisis between 2008-2009, have a much higher suicide rate compared to the more recent Generation Z.
+```{r boxplot1, echo=TRUE, eval=TRUE}
+box_data <- overview
+
+box_data%>%
+  mutate(min_suicide_rate = min(`suicides/100k pop`, na.rm = TRUE)) %>%
+  mutate(log_suicide_rate = log(`suicides/100k pop`-min_suicide_rate)) %>%
+  ggplot(aes(x=generation, y=log_suicide_rate, color=sex)) +
+  geom_boxplot() + labs(title="Log suicide rates vs Generation",
+         x = "Generation",
+         y = "log suicide no.")
+```
+
+The following box plot shows two key things; the economic division of GDP per capita between males and females and it again shows that suicide rates in men are higher. 
+
+```{r boxplot2, echo=TRUE, eval=TRUE,warning=FALSE}
+box_data <- overview
+
+box_data%>%
+  mutate(dis_year = cut(year, breaks=5)) %>%
+  group_by(country,dis_year,sex) %>%
+  mutate(min_suicide_rate = min(`suicides/100k pop`, na.rm = TRUE)) %>%
+  mutate(log_suicide_rate = log(`suicides/100k pop`-min_suicide_rate)) %>%
+  ggplot(aes(x=`gdp_per_capita ($)`, y=log_suicide_rate, color=sex)) + facet_grid(box_data$dis_year) +
+  geom_boxplot() + 
+  labs(title="Log suicide rates and GDP per capita: Males vs Females",
+         x = "GDP per capita",
+         y = "log suicide no.")
+
+```
+
+
+
+```{r range, echo=TRUE, eval=TRUE, warning=FALSE}
+box_data <- overview
+
+box_data%>%
+  mutate(dis_gdp_pc = cut(`gdp_per_capita ($)`, breaks=15)) %>%
+  group_by(dis_gdp_pc) %>%
+  mutate(log_suicide_rate = log(suicides_no)) %>%
+  ggplot(aes(x=dis_gdp_pc, y=log_suicide_rate, color=sex)) + 
+  theme(axis.text.x = element_text(angle=90, hjust=1)) +
+  labs(title="GDP per capita vs log suicide rates",
+         x = "GDP per capita(discretized) ($)",
+         y = "Log suicides") +
+  geom_boxplot() 
+
+```
+Although the suicde rates are very similar upto the range [5.91e4,6.75e4], after this range, suicide rates are much lower as GDP per capita increases. Both, the range and central tendencies for the last GDP per capita category of [1.18e5,1.26e5] are extremely low. This category mostly comprises of countries like Luxembourg, Qatar, Norway and Switzerland, all of which are wealthy countries with a very high standard of living. Suicde rates in such countries are clearly lower, which points to a relationship between economic status and suicide rates. 
+ 
+
+
+```{r distribution, eval=TRUE, echo=TRUE}
+
+eda_4 <- overview %>%
+  mutate(dis_year = cut(year, breaks=5)) %>%
+  group_by(dis_year, country)
+
+
+eda_4 %>%
+  ggplot(aes(x=suicides_no)) + facet_grid(eda_4$dis_year~generation) + geom_histogram(bins=10) + theme(axis.text.x = element_text(angle=90, hjust=1)) +
+  labs(title="Mean number of suicides: Males vs Females",
+         x = "Number of suicides",
+         y = "Count")
+```
+
+
+The following plot may be surprising. It shows that as the Human Development Index(HDI) increases, the number of suicides also increases. But there is a reason for this trend. As HDI increases, assets like wealth and knowledge are not well distributed among the population. The few rich people are becoming richer and poor people are becoming poorer. This creates a divide, which leads to deppression and suicide. 
+Therefore, it is important to reduce socioeconomic inequalities.
+```{r HDI vs Suicide rate, echo=TRUE, eval=FALSE}
+hdi_data <- overview %>%
+  mutate(mean_suicide <- mean(suicides_no))
+
+hdi_data %>%
+  ggplot(aes(x=`HDI for year`, y=suicides_no)) + geom_point() 
+```
+
+Below, we see the suicide rates by country. Suicide rates are highest in Russia, followed by USA and Japan.
+```{r Suicide no. vs. Country, eval=TRUE,echo=TRUE}
+overview %>%
+  ggplot(aes(x=factor(country), y=suicides_no)) +
+    geom_boxplot() + theme(axis.text.x = element_text(angle=90, hjust=1)) +
+    labs(title="Suicide no. vs. Country",
+         x = "Country",
+         y = "Number of Suicides")
+```
+
+
+Now, we determine if there is a relationship between people's age group and the number of suicides. 
+
+```{r Suicide no. vs. Age, eval=TRUE,echo=TRUE}
+temp <- overview %>%
+  group_by(age, country, sex) %>%
+  mutate(mean_scn = mean(suicides_no))
+
+temp %>%
+  ggplot(aes(x= mean_scn, y=age, color=sex)) + facet_wrap(~sex) +
+  theme(axis.text.x = element_text(angle=90, hjust=1)) +
+  labs(title="Age vs Number of suicides",
+         x = "Mean suicides",
+         y = "Age") +
+  geom_bar(stat="identity")
+
+
+```
+
+### EDA Summary:-
+
+We find that the "older working population", or people within the ages of 35 years and 54 years, have the highest suicide rates, since the economy affects them the most and they are not able to efficiently adapt to a new field of work. 
+
+From all the plots above, we can deduce the following things;
+
+1. Suicide rates are tends to be higher among males.
+2. Russia, USA and Japan had the highest suicide rates between 1985 and 2016.
+3. The Generation-Z is least affected by GDP, which can be attributed to more economic stability and better education.
+4. Suicide rates were highest among the G.I Generation and the Silent generation, which is due to instability in the world.
+5. As HDI increases, suicide rates also increase due to the resulting socio-economic gap.
+6. In general, for all the plots above, when GDP per capita increases, the suicide rates go down.
+
+<!-- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ --> 
+# Hypothesis Testing
+<!-- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ --> 
+
+Using this data, we are going to look at whether a country's standard of living affects the rate of suicide. To test this, we will determine a country's standard of living using the GDP Per Capita. The rate of suicide within a country will be measured by suicided per 100,000 population. 
+
+Our Null Hypothesis states a country's GDP Per Capita is not associated with the rate of suicide within the country.
+
+```{r roshen11111}
+overview %>%
+  ggplot(aes(x=year, y= overview$`gdp_per_capita ($)`)) + geom_point() + geom_smooth(method=lm) + 
+  labs(title="GDP Per Capita Over Time",
+      x = "Year",
+      y = "GDP Per Capita")
+exp_fit <- lm(overview$`gdp_per_capita ($)`~year, data=overview)
+exp_fit_stats <- exp_fit %>%
+  tidy()
+
+exp_fit_stats
+``` 
+
+This plot displays the GDP Per Capita over time from 1985 to 2016. Using the linear regression line, you can tell that there is a positive increase in GDP Per Capita from 1985 to 2016. This means most countries had an imporvement in their GDP Per Capita every year. 
+
+```{r roshen111}
+overview %>%
+  ggplot(aes(x=year, y=overview$`suicides/100k pop`)) + geom_point() + geom_smooth(method=lm) + 
+  labs(title="Number of Suicides Per 100k Over Time",
+      x = "Year",
+      y = "Number of Suicides Per 100k")
+exp_fit <- lm(overview$`suicides/100k pop`~year, data=overview)
+exp_fit_stats <- exp_fit %>%
+  tidy()
+
+exp_fit_stats
+```
+
+
+To show the linear trend of number of suicides over time, we decided to plot the number of suicides per 100k population over time so that the trend was more visible. If you look closely at the plot above, you will be able to see a slight negative linear trend as time increases. This slight decrease in the number of suicides may be because of the increase of GDP Per Capita of countries over time. This may suggest there is a correlation between GDP Per Capita and the rate of suicdes per country. 
+
+```{r roshen11}
+overview %>%
+  ggplot(aes(x=factor(year), y= overview$`gdp_per_capita ($)`)) +
+    geom_violin() + theme(axis.text.x = element_text(angle=90, hjust=1)) + 
+    labs(title="GDP Per Capita Over Time",
+         x = "Year",
+         y = "GDP Per Capita")
+exp_fit2 <- lm(overview$`gdp_per_capita ($)`~year, data=overview)
+exp_fit_stats <- exp_fit2 %>%
+  tidy()
+
+exp_fit_stats
+```
+
+
+This violin plot displays the GDP Per Capita over time from 1985 to 2016. In 1985, it seemed that all countries were in the same general range. As time went on, the GDP Per Capita of the poor countries increased very slowly. The GDP Per Capita of the richest countries would drastically increase every year. Every year shows a violin that is bottom heavy, however every year the top got thinner. This means the poorer countries struggled to get improve their economic situations, while the richer countries got richer. 
+
+```{r roshen1}
+augmented_exp <- exp_fit2 %>%
+  augment()
+
+augmented_exp
+
+augmented_exp %>%
+  ggplot(aes(x=factor(year), y=.resid)) +
+    geom_line() + theme(axis.text.x = element_text(angle=90, hjust=1)) +
+    labs(title="Residuals of GDP Per Capita Over Time",
+         x = "Year",
+         y = "Residuals")
+```
+
+
+From the violin plot displayed above, we can see that the residuals of GDP Per Capita tends to spread out over time. In 1985, the spread of residuals is nearly centered around 0. As time progresses, the lines become larger, therefore showing that the spread of residuals increases as time progresses. This further proves that the GDP Per Capita of the richer countries kept increasing while the poorer countries were not able to improve. 
+
+```{r roshen}
+overview %>%
+  ggplot(aes(x=overview$`gdp_per_capita ($)`, y=suicides_no)) + geom_point() + 
+  labs(title="Number of Suicides Over Time",
+      x = "GDP Per Capita",
+      y = "Number of Suicides")  
+
+exp_fit <- lm(suicides_no~overview$`gdp_per_capita ($)`, data=overview)
+exp_fit_stats <- exp_fit %>%
+  tidy()
+
+exp_fit_stats
+```
+From this graph you can see the distribution of points when comparing GDP Per Capita of each country to the number of suicides. The data is skewed to the left which gives us the assumption that countries with lower GDP Per Capita tend to gave higher rates of suicide.
+
+The p-value we collected was 1.331918E-24. Since the p-value is so low compared to our significance level of .05, we reject the null hypothesis. Therefore, we can conclude that GDP Per Capita of a country has an affect on the rate of suicides within the country. 
+
+# Machine Learning Analysis
+
+Next we will be using machine learning to analysis the preceding results and understand our data more. To do this, we will try to predictor the direction of the change of suicides per 100k in a demographic. Formally:
+
+$Can \hspace{1mm} we \hspace{1mm} use \hspace{1mm} gdp \hspace{1mm} per \hspace{1mm} capita \hspace{1mm} to \hspace{1mm} predict \hspace{1mm} the \hspace{1mm} change \hspace{1mm} in \hspace{1mm} suicides \hspace{1mm} per \hspace{1mm} one \hspace{1mm} hundred  \hspace{1mm} thousand \hspace{1mm} people?$
+
+First we will load the necesarry libraries that we will use in our analysis. We will use the caretEnsemble library to train and model our data. For more information go [here](https://cran.r-project.org/web/packages/caretEnsemble/vignettes/caretEnsemble-intro.html).
+
+```{r more_setup, message = FALSE}
+library(caret)
+library(caretEnsemble)
+library(plotROC)
+```
+
+Then we will prepare the data for our model fitting. We will create a new column called $Direction$ which will denote the change in suicide rates between the years 2013 and 2012 as well as remove extraneous columns from out data.
+
+```{r prep1}
+# Renaming variables to more useful names
+x_df <- overview %>%
+  filter(generation == "Millenials") %>%
+  rename(suicides = `suicides/100k pop`) %>%
+  rename(hdi = `HDI for year`) %>%
+  rename(gdp = `gdp_per_capita ($)`) %>%
+  select(country, age, year, sex, hdi, gdp, suicides)
+  
+# selecting the data from the year 2013
+d2013_diff_df <- x_df %>%
+  filter(year == 2013)
+
+# selecting the data from the year 2012
+d2012_df <- x_df %>%
+  filter(year == 2012)
+
+# vector with which columns define the statistics
+demographic <- c("country", "age", "sex")
+
+# creating Direction column based on the difference of suicides in 2013 and 2012
+diff_df <- inner_join(d2012_df, d2013_diff_df, by = demographic) %>%
+  mutate(Direction = ifelse(suicides.y - suicides.x > 0, "up", "down")) %>%
+  select(country, age, sex, Direction)
+
+# Adding the Direction column to the database based by demographic. 
+# As well as changing some columns to numeric values for ease of modeling.
+predictor_df <- inner_join(diff_df, x_df, demographic) %>% 
+  mutate(age = as.numeric(as.factor(age))) %>%
+  mutate(country = as.numeric(as.factor(country))) %>%
+  mutate(sex = as.numeric(as.factor(sex))) %>%
+  drop_na()
+
+head(predictor_df)
+```
+
+Here we partition the data into observations and results to train our model. We will also seperate these into seperate sets for training and testing the model. We randomize the data and put the data were using (gdp) into X and the data we're interested into Y.
+
+```{r prep}
+# Randomizing our data
+set.seed(123)
+x_rand <- predictor_df[sample(1:nrow(x_df)), ] %>% drop_na()
+
+X = x_rand[, 7] 
+y = x_rand[, 4] %>% as.data.frame()
+
+set.seed(123)
+part.index <- createDataPartition(x_rand[[4]],
+                                  p = 0.75,
+                                  list = FALSE)
+
+X_train <- X[part.index, ] %>% as.data.frame()
+X_test <- X[-part.index, ] %>% as.data.frame()
+y_train <- as.factor(y[part.index])
+y_test <- as.factor(y[-part.index])
+
+str(X_train)
+str(y_train)
+```
+
+Next we will perform the modeling. We set our train control variables used by caret to perform the modeling. We will use caretList to perform multiple forms of modeling at the same time, and we will select the model that maximizes the area under curve for ROC, the metric for evaluation of a categorical predicting model.
+
+```{r modeling, message=FALSE, echo=FALSE, error=FALSE, warning=FALSE}
+set.seed(123)
+
+my_control <- trainControl(method = "cv", # for “cross-validation”
+                           number = 5, # number of k-folds
+                           index = createFolds(y_train, 5),
+                           savePredictions = TRUE,
+                           summaryFunction = twoClassSummary,
+                           classProbs = TRUE,
+                           allowParallel = TRUE)
+
+model_list <- caretList(X_train,
+                        y_train,
+                        trControl = my_control,
+                        methodList = c("rf", "xgbTree", "xgbLinear"),
+                        tuneList = NULL,
+                        continue_on_fail = T, 
+                        metric="ROC",
+                        preProcess = c("center", "scale"))
+
+```
+
+After we have finished modeling we will find which model has the best AUC value.
+
+```{r explore, message = F}
+options(digits = 3)
+model_results <- data.frame(
+ RF = max(model_list$rf$results$ROC),
+ XGBT = max(model_list$xgbTree$results$ROC),
+ XGBL = max(model_list$xgbLinear$results$ROC)
+ )
+
+print(model_results)
+```
+
+From this wee can see the an xgbTree provides the best model for this data with a AUC of 0.581. So let's plot this.
+
+```{r aucplotting1}
+
+xgbtFit <- model_list$xgbTree
+
+Results <- xgbtFit$pred %>%
+  mutate(pred = ifelse(pred == "up", 1, 0)) %>%
+  mutate(obs = ifelse(obs == "up", 1, 0))
+
+selectedIndices <- xgbtFit$pred$max_depth == 1 & xgbtFit$pred$eta == 0.3 & xgbtFit$pred$colsample_bytree == 0.6 & xgbtFit$pred$subsample == 0.5 & xgbtFit$pred$nrounds == 50
+
+ggplot(Results[selectedIndices, ],
+       aes(m = Results$up[selectedIndices], d = Results$obs[selectedIndices])) +
+    geom_roc(hjust = -0.4, vjust = 1.5) + coord_equal()
+
+```
+
+This is not a great curve. With an AUC of 0.581 and the previous results we can determine that while gdp may be a factor in suicide rates, it is not a great predictor. Well what if we used more values to predict suicides rates.
+
+Here we will create our training set but this time we will use the country, demographic (age, sex), year, human development index (hdi), and the gdp to predict suicide rate change.
+```{r prep_more_than_gdp}
+
+set.seed(123)
+
+X = x_rand[, -4] %>% as.data.frame()
+y = x_rand[, 4] %>% as.data.frame()
+
+X_train <- X[part.index, ]
+y_train <- as.factor(y[part.index])
+y_test <- as.factor(y[-part.index])
+
+str(X_train)
+str(y_train)
+```
+
+After creating our training set we will train our models the same way as the last time.
+
+```{r modeling_more_than_gdp, warning=FALSE}
+set.seed(123)
+
+my_control <- trainControl(method = "cv", # for “cross-validation”
+                           number = 5, # number of k-folds
+                           index = createFolds(y_train, 5),
+                           savePredictions = TRUE,
+                           summaryFunction = twoClassSummary,
+                           classProbs = TRUE,
+                           allowParallel = TRUE)
+
+model_list <- caretList(X_train,
+                        y_train,
+                        trControl = my_control,
+                        methodList = c("rf", "xgbTree", "xgbLinear"),
+                        tuneList = NULL,
+                        continue_on_fail = FALSE, 
+                        metric="ROC",
+                        preProcess = c("center", "scale"))
+
+```
+
+Let's see which model did best.
+
+```{r explore_more_than_gdp, message = F}
+options(digits = 3)
+model_results <- data.frame(
+ RF = max(model_list$rf$results$ROC),
+ XGBT = max(model_list$xgbTree$results$ROC),
+ XGBL = max(model_list$xgbLinear$results$ROC)
+ )
+print(model_results)
+```
+
+A random forest model produced the highest AUC value for the ROC evaluation. So we will plot ROC of the random forest to see the curve.
+
+```{r plottingpart2}
+rfFit <- model_list$rf
+
+Results <- rfFit$pred %>%
+  mutate(pred = ifelse(pred == "up", 1, 0)) %>%
+  mutate(obs = ifelse(obs == "up", 1, 0))
+
+selectedIndices <- rfFit$pred$mtry == 2
+
+ggplot(Results[selectedIndices, ],
+       aes(m = Results$up[selectedIndices], d = Results$obs[selectedIndices])) +
+    geom_roc(hjust = -0.4, vjust = 1.5) + coord_equal()
+
+```
+
+With a AUC of 0.767 and a curve like that we can say that all of these predictors togther perform adequetely to predict the change in suicide rates.
+
+# Conclusion
+
+Suicide is an epidemic that plagues every culture and society on earth. The more we understand the causes of suicides globally, the more we can create counters to combat it. 
+
+In this tutorial we rejected our null hypothesis that GDP does not relate to suicide rates. We also were able to build a model for predicting the change in suicide rates for a given demographic.
+
+The impact of socio-economic status certainly factors into the discussion of suicide. For more reading on this topic read "The association between suicide and the socio-economic characteristics of geographical areas: a systematic review." by David Rehkopf and Stephen L Buka, found [here](https://www.cambridge.org/core/journals/psychological-medicine/article/association-between-suicide-and-the-socioeconomic-characteristics-of-geographical-areas-a-systematic-review/71841A26BF66AC7AAA3AF839DD9C2EBA).
+

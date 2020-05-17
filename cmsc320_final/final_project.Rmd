@@ -220,7 +220,7 @@ eda_4 %>%
 The following plot may be surprising. It shows that as the Human Development Index(HDI) increases, the number of suicides also increases. But there is a reason for this trend. As HDI increases, assets like wealth and knowledge are not well distributed among the population. The few rich people are becoming richer and poor people are becoming poorer. This creates a divide, which leads to deppression and suicide. 
 
 Therefore, it is important to reduce socioeconomic inequalities.
-```{r HDI vs Suicide rate, echo=TRUE, eval=TRUE}
+```{r HDI vs Suicide rate, echo=TRUE, eval=TRUE, warning=FALSE}
 hdi_data <- overview %>%
   mutate(mean_suicide <- mean(suicides_no))
 

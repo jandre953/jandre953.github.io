@@ -3,6 +3,7 @@ title: "How does GDP affect Suicide Rates? - An R Data Science Tutorial"
 output:
   html_document:
     df_print: paged
+  pdf_document: default
 ---
 
 ---
@@ -48,7 +49,7 @@ First, we take a look at our attribute of interest, the GDP, and how it is sprea
 summary(overview$`gdp_per_capita ($)`)
 ```
 
-The data above shows that the mean is much higher than the median. Thus the GDP per capita is skewed to the left. GDP per capita is therefore very poorly distributed across all countries between 1985 to 2016. We can see this pictorially with the help of the histogram below.
+The data above shows that the mean is much higher than the median. Thus the GDP per capita is skewed to the right GDP per capita is therefore very poorly distributed across all countries between 1985 to 2016. We can see this pictorially with the help of the histogram below.
 
 ```{r gdp per capita distribution, echo = TRUE, eval=TRUE}
 gdp_dist <- overview %>%

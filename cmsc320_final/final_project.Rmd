@@ -218,8 +218,9 @@ eda_4 %>%
 
 
 The following plot may be surprising. It shows that as the Human Development Index(HDI) increases, the number of suicides also increases. But there is a reason for this trend. As HDI increases, assets like wealth and knowledge are not well distributed among the population. The few rich people are becoming richer and poor people are becoming poorer. This creates a divide, which leads to deppression and suicide. 
+
 Therefore, it is important to reduce socioeconomic inequalities.
-```{r HDI vs Suicide rate, echo=TRUE, eval=FALSE}
+```{r HDI vs Suicide rate, echo=TRUE, eval=TRUE}
 hdi_data <- overview %>%
   mutate(mean_suicide <- mean(suicides_no))
 
@@ -240,18 +241,20 @@ overview %>%
 
 Now, we determine if there is a relationship between people's age group and the number of suicides. 
 
-```{r Suicide no. vs. Age, eval=TRUE,echo=TRUE}
+```{r Suicide no. vs. Age, eval=TRUE,echo=TRUE, angle=90}
 temp <- overview %>%
   group_by(age, country, sex) %>%
   mutate(mean_scn = mean(suicides_no))
 
 temp %>%
-  ggplot(aes(x= mean_scn, y=age, color=sex)) + facet_wrap(~sex) +
-  theme(axis.text.x = element_text(angle=90, hjust=1)) +
+  ggplot(aes(x= age, y=mean_scn, color=sex)) +
+  facet_wrap(~sex) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
   labs(title="Age vs Number of suicides",
-         x = "Mean suicides",
-         y = "Age") +
-  geom_bar(stat="identity")
+         x = "Age",
+         y = "Mean") +
+  geom_bar(stat="identity")+
+  coord_flip()
 
 
 ```

@@ -226,7 +226,9 @@ hdi_data <- overview %>%
   mutate(mean_suicide <- mean(suicides_no))
 
 hdi_data %>%
-  ggplot(aes(x=`HDI for year`, y=suicides_no)) + geom_point() 
+  ggplot(aes(x=`HDI for year`, y=suicides_no)) +
+  geom_point() +
+  labs(title = "Suicide no. vs HDI", x = "HDI", y = "Number of Suicides")
 ```
 
 Below, we see the suicide rates by country. Suicide rates are highest in Russia, followed by USA and Japan.
